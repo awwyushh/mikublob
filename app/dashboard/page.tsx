@@ -458,8 +458,18 @@ function CalendarGrid({
                   : 'border-transparent bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-300'
             } ${!inMonth ? 'opacity-50' : ''}`}
           >
-            {date.getDate()}
-            {count ? <span className="absolute bottom-2 right-2 text-[10px]">{count}</span> : null}
+            <span className="block text-center">{date.getDate()}</span>
+            {count ? (
+              <span
+                className={`absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none shadow-sm ${
+                  isSelected
+                    ? 'bg-white text-teal-600'
+                    : 'bg-teal-500 text-white dark:bg-teal-400 dark:text-slate-950'
+                }`}
+              >
+                {count > 99 ? '99+' : count}
+              </span>
+            ) : null}
           </Link>
         );
       })}
