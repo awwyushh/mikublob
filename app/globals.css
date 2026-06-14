@@ -3,23 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --background: 244 253 252;
-  --foreground: 15 23 42;
+  --background: 246 255 254;
+  --foreground: 16 24 39;
   --card: 255 255 255;
-  --border: 203 213 225;
+  --border: 210 231 228;
   --accent: 45 212 191;
-  --secondary: 153 246 228;
-  --muted: 71 85 105;
+  --secondary: 194 244 239;
+  --muted: 87 102 122;
 }
 
 .dark {
-  --background: 8 15 28;
-  --foreground: 232 244 247;
-  --card: 15 23 42;
-  --border: 45 65 93;
+  --background: 8 15 26;
+  --foreground: 238 247 246;
+  --card: 13 20 36;
+  --border: 39 58 73;
   --accent: 45 212 191;
-  --secondary: 17 94 89;
-  --muted: 148 163 184;
+  --secondary: 24 78 81;
+  --muted: 151 168 187;
 }
 
 html {
@@ -29,8 +29,8 @@ html {
 body {
   @apply bg-background text-foreground antialiased;
   background-image:
-    radial-gradient(circle at top left, rgba(45, 212, 191, 0.12), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 24%);
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.13), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.12), transparent 24%);
 }
 
 * {
@@ -55,4 +55,16 @@ body {
 
 .bg-grid {
   background-size: 22px 22px;
+}
+
+.soft-card {
+  @apply rounded-[2rem] border border-white/50 bg-white/80 shadow-[0_20px_60px_rgba(57,197,187,0.08)] dark:border-white/10 dark:bg-slate-900/75;
+}
+
+.pill {
+  @apply rounded-full border border-teal-200/70 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-teal-900 dark:bg-slate-900/70 dark:text-slate-200;
+}
+
+.page-shell {
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
 }
