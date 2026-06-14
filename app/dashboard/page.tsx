@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { auth } from '@/auth';
 import { FormSubmitButton } from '@/components/form-submit-button';
+import { MikuImage } from '@/components/miku-image';
 import { MikuMascot } from '@/components/miku-mascot';
 import { SignOutButton } from '@/components/sign-out-button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -95,7 +96,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   Keep a small line of what you studied. Tap a day, open a blob, or add a new one.
                 </p>
               </div>
-              <MikuMascot className="max-w-[110px]" />
+              <MikuImage className="max-w-[110px]" size={110} />
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <MetricCard value={String(data.stats.monthBlobCount)} label="this month" />

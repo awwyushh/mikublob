@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { GitHubSignInButton, GoogleSignInButton } from '@/components/auth-buttons';
+import { MikuImage } from '@/components/miku-image';
 import { MikuMascot } from '@/components/miku-mascot';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { signInWithGitHub, signInWithGoogle } from './actions';
@@ -56,7 +57,7 @@ export default async function LoginPage() {
 
         <div className="glass soft-ring bg-grid rounded-[2.5rem] p-6 sm:p-8">
           <div className="grid items-center gap-6 sm:grid-cols-[0.95fr_1.05fr]">
-            <MikuMascot mood="calm" className="mx-auto max-w-[260px]" />
+            <MikuImage className="mx-auto max-w-[260px]" />
             <div className="space-y-4">
               <div className="pill inline-flex">gentle start</div>
               {[

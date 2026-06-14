@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
+import { MikuImage } from '@/components/miku-image';
 import { MikuMascot } from '@/components/miku-mascot';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -103,7 +104,7 @@ export default async function HomePage() {
                   ))}
                 </div>
               </div>
-              <MikuMascot mood="happy" className="mx-auto max-w-[260px]" />
+              <MikuImage className="mx-auto max-w-[260px]" priority />
             </div>
           </div>
         </div>
