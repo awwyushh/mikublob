@@ -24,12 +24,12 @@ type DashboardPageProps = {
   };
 };
 
-const tabs: Array<{ key: DashboardTab; label: string; icon: string }> = [
-  { key: 'calendar', label: 'Calendar', icon: '◌' },
-  { key: 'search', label: 'Search', icon: '⌕' },
-  { key: 'tags', label: 'Tags', icon: '#' },
-  { key: 'stats', label: 'Stats', icon: '◔' },
-  { key: 'profile', label: 'Profile', icon: '◡' }
+const tabs: Array<{ key: DashboardTab; label: string }> = [
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'search', label: 'Search' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'stats', label: 'Stats' },
+  { key: 'profile', label: 'Profile' }
 ];
 
 const blobTypes = ['VIDEO', 'BOOK', 'PAPER', 'ARTICLE', 'PODCAST', 'CONFERENCE', 'COURSE', 'OTHER'] as const;
@@ -83,15 +83,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <main className="min-h-screen pb-24">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-24 pt-4">
-        <TopBar email={session.user.email ?? ''} />
+        <TopBar name={session.user.name?.split(' ')[0] ?? 'friend'} />
 
         <div className="mt-4 space-y-4">
-          <WelcomeCard
-            name={session.user.name?.split(' ')[0] ?? 'friend'}
-            streak={data.stats.streak}
-            blobCount={data.stats.monthBlobCount}
-            minuteCount={statsPeriod === 'week' ? data.stats.weekMinutes : data.stats.monthMinutes}
-          />
+          {activeTab === 'calendar' ? (
+            <WelcomeCard
+              name={session.user.name?.split(' ')[0] ?? 'friend'}
+              streak={data.stats.streak}
+              blobCount={data.stats.monthBlobCount}
+              minuteCount={statsPeriod === 'week' ? data.stats.weekMinutes : data.stats.monthMinutes}
+            />
+          ) : null}
 
           {activeTab === 'calendar' ? (
             <ScreenCard
@@ -307,7 +309,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <div className="mt-4 space-y-3">
                 <ProfileLink href="/api/export" label="Export Data" hint="Download your blobs as JSON" />
                 <ProfileLink href="/dashboard?tab=profile" label="Import Data" hint="Soon" disabled />
-                <ProfileRow label="Theme" value="Use the toggle in the top bar." />
+                <div className="rounded-[1.5rem] border border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80">
+                  <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Theme</div>
+                  <ThemeToggle />
+                </div>
                 <ProfileLink href="/dashboard?tab=profile" label="Backup" hint="Soon" disabled />
                 <ProfileLink href="mailto:support@mikublob.app" label="Help & Feedback" hint="Send email" />
                 <form action={signOutAction}>
@@ -328,15 +333,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
 }
 
-function TopBar({ email }: { email: string }) {
+function TopBar({ name }: { name: string }) {
   return (
-    <div className="glass soft-ring rounded-[2rem] p-4 shadow-glow">
+    <div className="rounded-[2rem] border border-white/50 bg-white/75 px-4 py-3 shadow-[0_12px_40px_rgba(57,197,187,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-lg font-black text-slate-900 dark:text-white">MikuBlob♪</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">{email || 'quiet learning log'}</div>
+          <div className="text-lg font-black tracking-tight text-slate-900 dark:text-white">MikuBlob♪</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">hi, {name}</div>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 dark:bg-teal-950/50 dark:text-teal-200">
+          <span className="h-2 w-2 rounded-full bg-teal-400" />
+          quiet mode
+        </div>
       </div>
     </div>
   );
@@ -680,9 +688,9 @@ function EmptyState({ text }: { text: string }) {
 
 function BottomNav({ activeTab, date }: { activeTab: DashboardTab; date: Date }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/50 bg-white/85 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85">
+    <nav className="fixed inset-x-0 bottom-0 z-40 px-4 pb-3 pt-2">
       <div className="mx-auto w-full max-w-md">
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-5 gap-1 rounded-[2rem] border border-white/60 bg-white/92 p-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/90 dark:shadow-[0_-8px_30px_rgba(0,0,0,0.35)]">
           {tabs.map((tab) => {
             const href = `/dashboard?tab=${tab.key}&date=${toDateInputValue(date)}`;
             const isActive = activeTab === tab.key || (activeTab === 'tag' && tab.key === 'tags');
@@ -691,12 +699,20 @@ function BottomNav({ activeTab, date }: { activeTab: DashboardTab; date: Date })
               <Link
                 key={tab.key}
                 href={href as never}
-                className={`rounded-2xl px-2 py-2 text-center text-xs font-semibold ${
-                  isActive ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                className={`group flex flex-col items-center rounded-[1.25rem] px-1 py-2 text-center transition ${
+                  isActive ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
-                <div>{tab.icon}</div>
-                <div className="mt-1">{tab.label}</div>
+                <div
+                  className={`flex h-8 min-w-12 items-center justify-center rounded-full px-3 transition ${
+                    isActive
+                      ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-200'
+                      : 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800/80'
+                  }`}
+                >
+                  <BottomNavIcon tab={tab.key} active={isActive} />
+                </div>
+                <div className={`mt-1 text-[11px] font-semibold ${isActive ? 'text-slate-900 dark:text-white' : ''}`}>{tab.label}</div>
               </Link>
             );
           })}
@@ -704,6 +720,51 @@ function BottomNav({ activeTab, date }: { activeTab: DashboardTab; date: Date })
       </div>
     </nav>
   );
+}
+
+function BottomNavIcon({ tab, active }: { tab: DashboardTab; active: boolean }) {
+  const className = `h-5 w-5 ${active ? 'stroke-[2.4]' : 'stroke-2'}`;
+
+  switch (tab) {
+    case 'calendar':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+          <path d="M7 3.5v3M17 3.5v3M3.5 9.5h17" />
+          <path d="M8 13h2M12 13h2M16 13h.01M8 17h2M12 17h2" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="M16 16l4.5 4.5" />
+        </svg>
+      );
+    case 'tags':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 12.5V6.8A2.8 2.8 0 0 1 6.8 4H13l7 7-8.2 8.2a2 2 0 0 1-2.8 0L4 14.9a3.4 3.4 0 0 1 0-2.4Z" />
+          <circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case 'stats':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 19.5V11M12 19.5V5M19 19.5v-8" />
+          <path d="M3.5 19.5h17" />
+        </svg>
+      );
+    case 'profile':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8.5" r="3.5" />
+          <path d="M5 19c1.8-3 4.2-4.5 7-4.5S17.2 16 19 19" />
+        </svg>
+      );
+    default:
+      return null;
+  }
 }
 
 function resolveTab(tab: string | undefined, blobId: string | undefined, tag: string | undefined): DashboardTab {
