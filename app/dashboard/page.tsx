@@ -8,7 +8,7 @@ import { SignOutButton } from '@/components/sign-out-button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { getDashboardData } from '@/lib/blob-service';
 import { formatLongDate, formatMonthLabel, getCalendarDays, startOfMonth, toDateInputValue } from '@/lib/utils';
-import { createBlobAction, deleteBlobAction, signOutAction } from './actions';
+import { createBlobAction, deleteBlobAction, signOutAction, updateBlobAction } from './actions';
 
 type DashboardPageProps = {
   searchParams?: {
@@ -60,6 +60,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const topTags = data.tagCounts.slice(0, 5);
   const previousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+  const previousDay = new Date(data.activeDate.getFullYear(), data.activeDate.getMonth(), data.activeDate.getDate() - 1);
+  const nextDay = new Date(data.activeDate.getFullYear(), data.activeDate.getMonth(), data.activeDate.getDate() + 1);
 
   return (
     <main className="min-h-screen pb-24">
@@ -99,7 +101,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <MetricCard value={String(data.stats.monthBlobCount)} label="this month" />
               <MetricCard value={`${data.stats.monthMinutes}m`} label="minutes" />
               <MetricCard value={String(data.stats.activeDays)} label="active days" />
-              <MetricCard value={String(data.stats.totalBlobCount)} label="all blobs" />
+              <MetricCard value={String(data.stats.streak)} label="streak" />
             </div>
           </div>
 
@@ -184,9 +186,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <div className="section-title">day view</div>
                   <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{formatLongDate(data.activeDate)}</h2>
                 </div>
-                <Link href={`/dashboard?tab=add&date=${toDateInputValue(data.activeDate)}`} className="pill">
-                  + add blob
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/dashboard?tab=day&date=${toDateInputValue(previousDay)}`} className="pill">
+                    ←
+                  </Link>
+                  <Link href={`/dashboard?tab=day&date=${toDateInputValue(nextDay)}`} className="pill">
+                    →
+                  </Link>
+                  <Link href={`/dashboard?tab=add&date=${toDateInputValue(data.activeDate)}`} className="pill">
+                    + add blob
+                  </Link>
+                </div>
               </div>
               <div className="mt-5 space-y-3">
                 {data.dayBlobs.length ? data.dayBlobs.map((blob: BlobWithTags) => <BlobCard key={blob.id} blob={blob} date={toDateInputValue(data.activeDate)} />) : <EmptyState text="This day is still empty. Add your first blob." />}
@@ -198,45 +208,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <section className="soft-card p-6 sm:p-7">
               <div className="section-title">add blob</div>
               <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">save today&apos;s study</h2>
-              <form action={createBlobAction} className="mt-6 space-y-4">
-                <Field label="Title">
-                  <input name="title" required className={inputClassName} placeholder="LLVM IR Deep Dive" />
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Date">
-                    <input name="consumedAt" type="date" defaultValue={toDateInputValue(data.activeDate)} className={inputClassName} />
-                  </Field>
-                  <Field label="Type">
-                    <select name="type" className={inputClassName} defaultValue="VIDEO">
-                      {blobTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type.toLowerCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Duration (min)">
-                    <input name="durationMin" type="number" min="0" className={inputClassName} placeholder="58" />
-                  </Field>
-                </div>
-                <Field label="Source URL">
-                  <input name="sourceUrl" type="url" className={inputClassName} placeholder="https://..." />
-                </Field>
-                <Field label="Tags">
-                  <input name="tags" className={inputClassName} placeholder="compiler, llvm, ssa" />
-                </Field>
-                <Field label="Summary">
-                  <textarea name="summary" className={`${inputClassName} min-h-24`} placeholder="What was this about?" />
-                </Field>
-                <Field label="Key Learnings">
-                  <textarea name="keyLearnings" className={`${inputClassName} min-h-28`} placeholder="What do you want to remember?" />
-                </Field>
-                <FormSubmitButton
-                  label="Save blob"
-                  pendingLabel="Saving..."
-                  className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
-                />
-              </form>
+              <BlobForm action={createBlobAction} defaultDate={toDateInputValue(data.activeDate)} />
+            </section>
+          ) : null}
+
+          {activeTab === 'edit' && activeBlob ? (
+            <section className="soft-card p-6 sm:p-7">
+              <div className="section-title">edit blob</div>
+              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">update this note</h2>
+              <BlobForm
+                action={updateBlobAction}
+                defaultDate={toDateInputValue(activeBlob.consumedAt)}
+                blob={activeBlob}
+              />
             </section>
           ) : null}
 
@@ -250,16 +234,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                     {formatLongDate(activeBlob.consumedAt)} · {activeBlob.type.toLowerCase()}
                   </p>
                 </div>
-                <form action={deleteBlobAction}>
-                  <input type="hidden" name="blobId" value={activeBlob.id} />
-                  <input type="hidden" name="tab" value="day" />
-                  <input type="hidden" name="date" value={toDateInputValue(activeBlob.consumedAt)} />
-                  <FormSubmitButton
-                    label="Delete"
-                    pendingLabel="Deleting..."
-                    className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 dark:border-rose-900/60 dark:text-rose-300"
-                  />
-                </form>
+                <div className="flex items-center gap-2">
+                  <Link href={`/dashboard?tab=edit&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`} className="pill">
+                    Edit
+                  </Link>
+                  <form action={deleteBlobAction}>
+                    <input type="hidden" name="blobId" value={activeBlob.id} />
+                    <input type="hidden" name="tab" value="day" />
+                    <input type="hidden" name="date" value={toDateInputValue(activeBlob.consumedAt)} />
+                    <FormSubmitButton
+                      label="Delete"
+                      pendingLabel="Deleting..."
+                      className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 dark:border-rose-900/60 dark:text-rose-300"
+                    />
+                  </form>
+                </div>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 {activeBlob.tags.map(({ tag }: { tag: { id: string; name: string } }) => (
@@ -280,8 +269,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">find old notes</h2>
               <form className="mt-5 flex gap-3" action="/dashboard">
                 <input type="hidden" name="tab" value="search" />
-                <input type="hidden" name="date" value={toDateInputValue(data.activeDate)} />
-                <input name="q" defaultValue={searchParams?.q ?? ''} className={inputClassName} placeholder="title, tag, summary..." />
+                <Field label="Title">
+                  <input type="hidden" name="date" value={toDateInputValue(data.activeDate)} />
+                  <input name="q" defaultValue={searchParams?.q ?? ''} className={inputClassName} placeholder="title, tag, summary..." />
+                </Field>
                 <button type="submit" className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white">
                   Search
                 </button>
@@ -349,6 +340,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 <ProfileRow label="email" value={session.user.email ?? 'No email returned'} />
                 <ProfileRow label="this month" value={`${data.stats.monthBlobCount} blobs`} />
                 <ProfileRow label="all blobs" value={`${data.stats.totalBlobCount} total`} />
+                <ProfileRow label="streak" value={`${data.stats.streak} days`} />
                 <ProfileRow label="tags" value={`${data.tagCounts.length} tags`} />
                 <ProfileRow label="theme" value="light / dark" />
               </div>
@@ -393,7 +385,7 @@ function resolveTab(tab: string | undefined, blobId: string | undefined, tag: st
     return 'tags';
   }
 
-  if (tab === 'add' || tab === 'search' || tab === 'tags' || tab === 'stats' || tab === 'profile' || tab === 'day') {
+  if (tab === 'add' || tab === 'edit' || tab === 'search' || tab === 'tags' || tab === 'stats' || tab === 'profile' || tab === 'day') {
     return tab;
   }
 
@@ -479,6 +471,81 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
       <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{label}</div>
       <div className="mt-2 font-semibold text-slate-900 dark:text-white">{value}</div>
     </div>
+  );
+}
+
+function BlobForm({
+  action,
+  defaultDate,
+  blob
+}: {
+  action: (formData: FormData) => Promise<void>;
+  defaultDate: string;
+  blob?: BlobWithTags;
+}) {
+  return (
+    <form action={action} className="mt-6 space-y-4">
+      {blob ? <input type="hidden" name="blobId" value={blob.id} /> : null}
+      <Field label="Title">
+        <input name="title" required className={inputClassName} placeholder="LLVM IR Deep Dive" defaultValue={blob?.title ?? ''} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Date">
+          <input name="consumedAt" type="date" defaultValue={defaultDate} className={inputClassName} />
+        </Field>
+        <Field label="Type">
+          <select name="type" className={inputClassName} defaultValue={blob?.type ?? 'VIDEO'}>
+            {blobTypes.map((type) => (
+              <option key={type} value={type}>
+                {type.toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Duration (min)">
+          <input
+            name="durationMin"
+            type="number"
+            min="0"
+            className={inputClassName}
+            placeholder="58"
+            defaultValue={blob?.durationMin ?? undefined}
+          />
+        </Field>
+      </div>
+      <Field label="Source URL">
+        <input name="sourceUrl" type="url" className={inputClassName} placeholder="https://..." defaultValue={blob?.sourceUrl ?? ''} />
+      </Field>
+      <Field label="Tags">
+        <input
+          name="tags"
+          className={inputClassName}
+          placeholder="compiler, llvm, ssa"
+          defaultValue={blob ? blob.tags.map(({ tag }) => tag.name).join(', ') : ''}
+        />
+      </Field>
+      <Field label="Summary">
+        <textarea
+          name="summary"
+          className={`${inputClassName} min-h-24`}
+          placeholder="What was this about?"
+          defaultValue={blob?.summary ?? ''}
+        />
+      </Field>
+      <Field label="Key Learnings">
+        <textarea
+          name="keyLearnings"
+          className={`${inputClassName} min-h-28`}
+          placeholder="What do you want to remember?"
+          defaultValue={blob?.keyLearnings ?? ''}
+        />
+      </Field>
+      <FormSubmitButton
+        label={blob ? 'Update blob' : 'Save blob'}
+        pendingLabel={blob ? 'Updating...' : 'Saving...'}
+        className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
+      />
+    </form>
   );
 }
 

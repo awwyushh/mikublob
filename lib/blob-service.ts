@@ -125,7 +125,8 @@ export async function getDashboardData(userId: string, options: { date?: string 
   const totalMinutes = monthBlobs.reduce((sum: number, blob: { durationMin: number | null }) => sum + (blob.durationMin ?? 0), 0);
   const tagCounts = tagRows.map((tag: { name: string; _count: { blobs: number } }) => ({ name: tag.name, count: tag._count.blobs }));
 
-  const allDates = new Set(allBlobDates.map((blob: { consumedAt: Date }) => blob.consumedAt.toISOString().slice(0, 10)));
+  const allDates = new Set<string>(allBlobDates.map((blob: { consumedAt: Date }) => blob.consumedAt.toISOString().slice(0, 10)));
+  const streak = getCurrentStreak(Array.from(allDates));
 
   return {
     activeDate,
@@ -139,7 +140,8 @@ export async function getDashboardData(userId: string, options: { date?: string 
       monthMinutes: totalMinutes,
       totalBlobCount: allBlobDates.length,
       activeTagCount: tagRows.length,
-      activeDays: allDates.size
+      activeDays: allDates.size,
+      streak
     }
   };
 }
@@ -205,11 +207,107 @@ export async function deleteBlobEntry(userId: string, blobId: string) {
     return;
   }
 
-  await prisma.blobEntry.deleteMany({
-    where: {
-      id: blobId,
-      userId
+  await prisma.$transaction(async (tx: any) => {
+    await tx.blobEntry.deleteMany({
+      where: {
+        id: blobId,
+        userId
+      }
+    });
+
+    await tx.tag.deleteMany({
+      where: {
+        userId,
+        blobs: {
+          none: {}
+        }
+      }
+    });
+  });
+}
+
+export async function updateBlobEntry(userId: string, blobId: string, values: {
+  title: string;
+  type: string;
+  sourceUrl?: string;
+  summary?: string;
+  keyLearnings?: string;
+  durationMin?: number | null;
+  consumedAt: string;
+  tags: string[];
+}) {
+  if (!prisma) {
+    return;
+  }
+
+  const normalizedTags = Array.from(new Set(values.tags.map(slugifyTag).filter(Boolean)));
+  const consumedAt = parseDateParam(values.consumedAt);
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.blobEntry.updateMany({
+      where: {
+        id: blobId,
+        userId
+      },
+      data: {
+        title: values.title.trim(),
+        type: normalizeBlobType(values.type),
+        sourceUrl: values.sourceUrl?.trim() || null,
+        summary: values.summary?.trim() || null,
+        keyLearnings: values.keyLearnings?.trim() || null,
+        durationMin: values.durationMin ?? null,
+        consumedAt
+      }
+    });
+
+    const blob = await tx.blobEntry.findFirst({
+      where: {
+        id: blobId,
+        userId
+      }
+    });
+
+    if (!blob) {
+      return;
     }
+
+    await tx.blobTag.deleteMany({
+      where: {
+        blobId: blob.id
+      }
+    });
+
+    for (const tagName of normalizedTags) {
+      const tag = await tx.tag.upsert({
+        where: {
+          userId_name: {
+            userId,
+            name: tagName
+          }
+        },
+        update: {},
+        create: {
+          userId,
+          name: tagName
+        }
+      });
+
+      await tx.blobTag.create({
+        data: {
+          blobId: blob.id,
+          tagId: tag.id
+        }
+      });
+    }
+
+    await tx.tag.deleteMany({
+      where: {
+        userId,
+        blobs: {
+          none: {}
+        }
+      }
+    });
   });
 }
 
@@ -221,4 +319,32 @@ function normalizeBlobType(value: string): BlobTypeValue {
   }
 
   return 'OTHER';
+}
+
+function getCurrentStreak(dateKeys: string[]) {
+  if (!dateKeys.length) {
+    return 0;
+  }
+
+  const normalized = new Set(dateKeys);
+  const today = startOfDay(new Date());
+  let cursor = today;
+  let streak = 0;
+
+  while (normalized.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() - 1);
+  }
+
+  if (streak > 0) {
+    return streak;
+  }
+
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  while (normalized.has(yesterday.toISOString().slice(0, 10))) {
+    streak += 1;
+    yesterday.setDate(yesterday.getDate() - 1);
+  }
+
+  return streak;
 }
