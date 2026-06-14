@@ -178,11 +178,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               hideHeader
               action={<Link href={`/dashboard?tab=edit&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`} className="pill">Edit</Link>}
             >
-              <BlobHeader blob={activeBlob} />
+              <BlobHero blob={activeBlob} />
               <TagPills tags={activeBlob.tags} />
-              <DetailBlock title="Summary" text={activeBlob.summary || 'No summary yet.'} />
-              <DetailBlock title="Key Learnings" text={activeBlob.keyLearnings || 'No key learnings yet.'} />
-              <DetailBlock title="Source URL" text={activeBlob.sourceUrl || 'No source URL saved.'} />
+              <ArticleBlock title="Summary" text={activeBlob.summary || 'No summary yet.'} />
+              <ArticleBlock title="Key Learnings" text={activeBlob.keyLearnings || 'No key learnings yet.'} />
+              <SourceBlock sourceUrl={activeBlob.sourceUrl} />
               <div className="mt-4">
                 <form action={deleteBlobAction}>
                   <input type="hidden" name="blobId" value={activeBlob.id} />
@@ -511,16 +511,13 @@ function BlobListRow({ blob, date }: { blob: BlobWithTags; date: Date }) {
   );
 }
 
-function BlobHeader({ blob }: { blob: BlobWithTags }) {
+function BlobHero({ blob }: { blob: BlobWithTags }) {
   return (
-    <div className="rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">{blob.title}</div>
-          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {blob.type.toLowerCase()} · {blob.durationMin ? `${blob.durationMin} min` : 'no duration'} · {formatLongDate(blob.consumedAt)}
-          </div>
-        </div>
+    <div className="rounded-[1.75rem] bg-slate-50/90 p-5 dark:bg-slate-800/75">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-600 dark:text-teal-300">Reading Note</div>
+      <h2 className="mt-3 text-2xl font-black leading-tight text-slate-900 dark:text-white">{blob.title}</h2>
+      <div className="mt-3 text-sm leading-7 text-slate-500 dark:text-slate-400">
+        {blob.type.toLowerCase()} · {blob.durationMin ? `${blob.durationMin} min` : 'no duration'} · {formatLongDate(blob.consumedAt)}
       </div>
     </div>
   );
@@ -538,12 +535,36 @@ function TagPills({ tags }: { tags: BlobWithTags['tags'] }) {
   );
 }
 
-function DetailBlock({ title, text }: { title: string; text: string }) {
+function ArticleBlock({ title, text }: { title: string; text: string }) {
   return (
-    <div className="mt-4 rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
-      <div className="text-sm font-semibold text-slate-900 dark:text-white">{title}</div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">{text}</p>
-    </div>
+    <article className="mt-5 rounded-[1.75rem] border border-slate-200/70 bg-white/90 p-5 dark:border-slate-700/80 dark:bg-slate-900/85">
+      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{title}</div>
+      <div className="mt-4">
+        <p className="whitespace-pre-wrap break-words text-[15px] leading-8 text-slate-700 dark:text-slate-200">{text}</p>
+      </div>
+    </article>
+  );
+}
+
+function SourceBlock({ sourceUrl }: { sourceUrl: string | null }) {
+  return (
+    <section className="mt-5 rounded-[1.75rem] border border-slate-200/70 bg-white/90 p-5 dark:border-slate-700/80 dark:bg-slate-900/85">
+      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Source URL</div>
+      <div className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
+        {sourceUrl ? (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block break-all text-teal-700 underline decoration-teal-300 underline-offset-4 dark:text-teal-300"
+          >
+            {sourceUrl}
+          </a>
+        ) : (
+          <p className="break-words">No source URL saved.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
