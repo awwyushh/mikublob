@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 244 253 252;
+  --foreground: 15 23 42;
+  --card: 255 255 255;
+  --border: 203 213 225;
+  --accent: 45 212 191;
+  --secondary: 153 246 228;
+  --muted: 71 85 105;
+}
+
+.dark {
+  --background: 8 15 28;
+  --foreground: 232 244 247;
+  --card: 15 23 42;
+  --border: 45 65 93;
+  --accent: 45 212 191;
+  --secondary: 17 94 89;
+  --muted: 148 163 184;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 24%);
+}
+
+* {
+  @apply border-border;
+}
+
+.glass {
+  @apply border border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70;
+}
+
+.section-title {
+  @apply text-sm font-semibold uppercase tracking-[0.3em] text-teal-600 dark:text-teal-300;
+}
+
+.card-title {
+  @apply text-lg font-semibold text-slate-900 dark:text-slate-50;
+}
+
+.soft-ring {
+  @apply ring-1 ring-teal-500/20 dark:ring-teal-300/15;
+}
+
+.bg-grid {
+  background-size: 22px 22px;
+}
