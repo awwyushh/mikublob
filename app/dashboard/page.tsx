@@ -4,10 +4,10 @@ import type { ReactNode } from 'react';
 import { auth } from '@/auth';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { MikuImage } from '@/components/miku-image';
-import { MikuMascot } from '@/components/miku-mascot';
 import { SignOutButton } from '@/components/sign-out-button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { getDashboardData } from '@/lib/blob-service';
+import type { DashboardTab, SearchScope, StatsPeriod, TagMode } from '@/lib/dashboard-types';
 import { formatLongDate, formatMonthLabel, getCalendarDays, startOfMonth, toDateInputValue } from '@/lib/utils';
 import { createBlobAction, deleteBlobAction, signOutAction, updateBlobAction } from './actions';
 
@@ -18,18 +18,24 @@ type DashboardPageProps = {
     q?: string;
     tag?: string;
     blob?: string;
+    scope?: string;
+    mode?: string;
+    period?: string;
   };
 };
 
-const tabs = [
+const tabs: Array<{ key: DashboardTab; label: string; icon: string }> = [
   { key: 'calendar', label: 'Calendar', icon: '◌' },
   { key: 'search', label: 'Search', icon: '⌕' },
   { key: 'tags', label: 'Tags', icon: '#' },
   { key: 'stats', label: 'Stats', icon: '◔' },
   { key: 'profile', label: 'Profile', icon: '◡' }
-] as const;
+];
 
 const blobTypes = ['VIDEO', 'BOOK', 'PAPER', 'ARTICLE', 'PODCAST', 'CONFERENCE', 'COURSE', 'OTHER'] as const;
+const searchScopes: SearchScope[] = ['all', 'blobs', 'tags'];
+const tagModes: TagMode[] = ['recent', 'popular'];
+const statsPeriods: StatsPeriod[] = ['week', 'month'];
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await auth();
@@ -38,10 +44,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect('/login');
   }
 
+  const activeTab = resolveTab(searchParams?.tab, searchParams?.blob, searchParams?.tag);
+  const activeDate = searchParams?.date;
+  const searchScope = resolveSearchScope(searchParams?.scope);
+  const tagMode = resolveTagMode(searchParams?.mode);
+  const statsPeriod = resolveStatsPeriod(searchParams?.period);
+
   const data = await getDashboardData(session.user.id, {
-    date: searchParams?.date,
+    date: activeDate,
     query: searchParams?.q,
-    tag: searchParams?.tag
+    tag: searchParams?.tag,
+    scope: searchScope,
+    mode: tagMode,
+    period: statsPeriod
   });
 
   if (!data) {
@@ -54,88 +69,35 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     );
   }
 
-  const activeTab = resolveTab(searchParams?.tab, searchParams?.blob, searchParams?.tag);
-  const activeBlob = searchParams?.blob ? data.allBlobs.find((blob: BlobWithTags) => blob.id === searchParams.blob) : null;
   const currentMonth = startOfMonth(data.activeDate);
   const calendarDays = getCalendarDays(currentMonth);
-  const topTags = data.tagCounts.slice(0, 5);
   const previousMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
   const previousDay = new Date(data.activeDate.getFullYear(), data.activeDate.getMonth(), data.activeDate.getDate() - 1);
   const nextDay = new Date(data.activeDate.getFullYear(), data.activeDate.getMonth(), data.activeDate.getDate() + 1);
+  const activeBlob = searchParams?.blob ? data.searchBlobs.find((blob: BlobWithTags) => blob.id === searchParams.blob) ?? data.dayBlobs.find((blob: BlobWithTags) => blob.id === searchParams.blob) ?? data.activeTagBlobs.find((blob: BlobWithTags) => blob.id === searchParams.blob) : null;
+  const matchingTags = searchParams?.q
+    ? data.tagCounts.filter((tag: { name: string; count: number }) => tag.name.includes(searchParams.q!.trim().toLowerCase())).slice(0, 6)
+    : [];
 
   return (
     <main className="min-h-screen pb-24">
-      <section className="page-shell py-4 sm:py-6">
-        <div className="glass soft-ring rounded-[2rem] p-4 shadow-glow">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-lg font-black text-slate-900 dark:text-white">MikuBlob♪</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">{session.user.email ?? 'quiet learning log'}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <form action={signOutAction}>
-                <SignOutButton />
-              </form>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-24 pt-4">
+        <TopBar email={session.user.email ?? ''} />
 
-      <section className="page-shell grid gap-6 lg:grid-cols-[380px_1fr]">
-        <div className="space-y-6">
-          <div className="glass soft-ring bg-grid rounded-[2.5rem] p-6 shadow-glow">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="section-title">hello</div>
-                <h1 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
-                  {session.user.name?.split(' ')[0] ?? 'friend'}
-                </h1>
-                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  Keep a small line of what you studied. Tap a day, open a blob, or add a new one.
-                </p>
-              </div>
-              <MikuImage className="max-w-[110px]" size={110} />
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <MetricCard value={String(data.stats.monthBlobCount)} label="this month" />
-              <MetricCard value={`${data.stats.monthMinutes}m`} label="minutes" />
-              <MetricCard value={String(data.stats.activeDays)} label="active days" />
-              <MetricCard value={String(data.stats.streak)} label="streak" />
-            </div>
-          </div>
+        <div className="mt-4 space-y-4">
+          <WelcomeCard
+            name={session.user.name?.split(' ')[0] ?? 'friend'}
+            streak={data.stats.streak}
+            blobCount={data.stats.monthBlobCount}
+            minuteCount={statsPeriod === 'week' ? data.stats.weekMinutes : data.stats.monthMinutes}
+          />
 
-          <div className="soft-card p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="section-title">today</div>
-                <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{formatLongDate(data.activeDate)}</h2>
-              </div>
-              <Link href={`/dashboard?tab=add&date=${toDateInputValue(data.activeDate)}`} className="pill">
-                + add blob
-              </Link>
-            </div>
-            <div className="mt-4 space-y-3">
-              {data.dayBlobs.length ? (
-                data.dayBlobs.map((blob: BlobWithTags) => (
-                  <BlobRow key={blob.id} blob={blob} date={toDateInputValue(data.activeDate)} />
-                ))
-              ) : (
-                <EmptyState text="No blobs on this day yet." />
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
           {activeTab === 'calendar' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="section-title">calendar</div>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{formatMonthLabel(currentMonth)}</h2>
-                </div>
+            <ScreenCard
+              title="Calendar"
+              subtitle={formatMonthLabel(currentMonth)}
+              action={
                 <div className="flex items-center gap-2">
                   <Link href={`/dashboard?tab=calendar&date=${toDateInputValue(previousMonth)}`} className="pill">
                     ←
@@ -143,50 +105,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <Link href={`/dashboard?tab=calendar&date=${toDateInputValue(nextMonth)}`} className="pill">
                     →
                   </Link>
-                  <Link href={`/dashboard?tab=add&date=${toDateInputValue(data.activeDate)}`} className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white">
-                    add blob
-                  </Link>
                 </div>
+              }
+            >
+              <CalendarGrid calendarDays={calendarDays} activeDate={data.activeDate} countsByDate={data.countsByDate} />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <MetricTile label="Learning Streak" value={`${data.stats.streak} 🔥`} />
+                <MetricTile label="This Month" value={`${data.stats.monthBlobCount} Blobs`} />
               </div>
-              <div className="mt-6 grid grid-cols-7 gap-2 text-center text-sm">
-                {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => (
-                  <div key={day} className="pb-2 font-medium text-slate-500 dark:text-slate-400">
-                    {day}
-                  </div>
-                ))}
-                {calendarDays.map(({ date, inMonth }) => {
-                  const iso = toDateInputValue(date);
-                  const isSelected = iso === toDateInputValue(data.activeDate);
-                  const count = data.countsByDate.get(iso) ?? 0;
-
-                  return (
-                    <Link
-                      key={iso}
-                      href={`/dashboard?tab=day&date=${iso}`}
-                      className={`relative rounded-2xl border p-3 text-center font-semibold ${
-                        isSelected
-                          ? 'border-teal-400 bg-teal-500 text-white'
-                          : count
-                            ? 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-300'
-                            : 'border-transparent bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-300'
-                      } ${!inMonth ? 'opacity-50' : ''}`}
-                    >
-                      {date.getDate()}
-                      {count ? <span className="absolute bottom-2 right-2 text-[10px]">{count}</span> : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
+              <FloatingAddLink date={data.activeDate} />
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'day' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="section-title">day view</div>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{formatLongDate(data.activeDate)}</h2>
-                </div>
+            <ScreenCard
+              title="Day View"
+              subtitle={formatLongDate(data.activeDate)}
+              action={
                 <div className="flex items-center gap-2">
                   <Link href={`/dashboard?tab=day&date=${toDateInputValue(previousDay)}`} className="pill">
                     ←
@@ -194,210 +129,420 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <Link href={`/dashboard?tab=day&date=${toDateInputValue(nextDay)}`} className="pill">
                     →
                   </Link>
-                  <Link href={`/dashboard?tab=add&date=${toDateInputValue(data.activeDate)}`} className="pill">
-                    + add blob
-                  </Link>
                 </div>
+              }
+            >
+              <DayTypeStrip counts={data.dayTypeCounts} />
+              <div className="mt-4 space-y-3">
+                {data.dayBlobs.length ? data.dayBlobs.map((blob: BlobWithTags) => <BlobListRow key={blob.id} blob={blob} date={data.activeDate} />) : <EmptyState text="No blobs on this day yet." />}
               </div>
-              <div className="mt-5 space-y-3">
-                {data.dayBlobs.length ? data.dayBlobs.map((blob: BlobWithTags) => <BlobCard key={blob.id} blob={blob} date={toDateInputValue(data.activeDate)} />) : <EmptyState text="This day is still empty. Add your first blob." />}
-              </div>
-            </section>
+              <AddBar date={data.activeDate} />
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'add' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="section-title">add blob</div>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">save today&apos;s study</h2>
+            <ScreenCard title="Add Blob" subtitle="Save today’s study">
               <BlobForm action={createBlobAction} defaultDate={toDateInputValue(data.activeDate)} />
-            </section>
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'edit' && activeBlob ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="section-title">edit blob</div>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">update this note</h2>
-              <BlobForm
-                action={updateBlobAction}
-                defaultDate={toDateInputValue(activeBlob.consumedAt)}
-                blob={activeBlob}
-              />
-            </section>
+            <ScreenCard title="Edit Blob" subtitle="Update this note">
+              <BlobForm action={updateBlobAction} defaultDate={toDateInputValue(activeBlob.consumedAt)} blob={activeBlob} />
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'blob' && activeBlob ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="section-title">blob view</div>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{activeBlob.title}</h2>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    {formatLongDate(activeBlob.consumedAt)} · {activeBlob.type.toLowerCase()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link href={`/dashboard?tab=edit&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`} className="pill">
-                    Edit
-                  </Link>
-                  <form action={deleteBlobAction}>
-                    <input type="hidden" name="blobId" value={activeBlob.id} />
-                    <input type="hidden" name="tab" value="day" />
-                    <input type="hidden" name="date" value={toDateInputValue(activeBlob.consumedAt)} />
-                    <FormSubmitButton
-                      label="Delete"
-                      pendingLabel="Deleting..."
-                      className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 dark:border-rose-900/60 dark:text-rose-300"
-                    />
-                  </form>
-                </div>
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {activeBlob.tags.map(({ tag }: { tag: { id: string; name: string } }) => (
-                  <Link key={tag.id} href={`/dashboard?tab=tags&tag=${tag.name}`} className="pill">
-                    {tag.name}
-                  </Link>
-                ))}
-              </div>
+            <ScreenCard
+              title="Blob View"
+              subtitle={activeBlob.title}
+              action={<Link href={`/dashboard?tab=edit&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`} className="pill">Edit</Link>}
+            >
+              <BlobHeader blob={activeBlob} />
+              <TagPills tags={activeBlob.tags} />
               <DetailBlock title="Summary" text={activeBlob.summary || 'No summary yet.'} />
               <DetailBlock title="Key Learnings" text={activeBlob.keyLearnings || 'No key learnings yet.'} />
-              <DetailBlock title="Source" text={activeBlob.sourceUrl || 'No source URL saved.'} />
-            </section>
+              <DetailBlock title="Source URL" text={activeBlob.sourceUrl || 'No source URL saved.'} />
+              <div className="mt-4">
+                <form action={deleteBlobAction}>
+                  <input type="hidden" name="blobId" value={activeBlob.id} />
+                  <input type="hidden" name="tab" value="day" />
+                  <input type="hidden" name="date" value={toDateInputValue(activeBlob.consumedAt)} />
+                  <FormSubmitButton
+                    label="Delete Blob"
+                    pendingLabel="Deleting..."
+                    className="w-full rounded-full border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 dark:border-rose-900/60 dark:text-rose-300"
+                  />
+                </form>
+              </div>
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'search' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="section-title">search</div>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">find old notes</h2>
-              <form className="mt-5 flex gap-3" action="/dashboard">
+            <ScreenCard title="Search" subtitle="Find old notes">
+              <form action="/dashboard" className="space-y-3">
                 <input type="hidden" name="tab" value="search" />
-                <Field label="Title">
-                  <input type="hidden" name="date" value={toDateInputValue(data.activeDate)} />
-                  <input name="q" defaultValue={searchParams?.q ?? ''} className={inputClassName} placeholder="title, tag, summary..." />
-                </Field>
-                <button type="submit" className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white">
+                <input type="hidden" name="date" value={toDateInputValue(data.activeDate)} />
+                <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+                  <input name="q" defaultValue={searchParams?.q ?? ''} className="w-full bg-transparent text-sm outline-none" placeholder="ssa, compiler, june..." />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {searchScopes.map((scope) => (
+                    <label key={scope} className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${searchScope === scope ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                      <input type="radio" name="scope" value={scope} defaultChecked={searchScope === scope} className="sr-only" />
+                      {scope === 'all' ? 'All' : scope === 'blobs' ? 'Blobs' : 'Tags'}
+                    </label>
+                  ))}
+                </div>
+                <button type="submit" className="w-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-4 py-3 text-sm font-semibold text-white">
                   Search
                 </button>
               </form>
-              <div className="mt-5 space-y-3">
-                {data.allBlobs.length ? data.allBlobs.map((blob: BlobWithTags) => <BlobRow key={blob.id} blob={blob} date={toDateInputValue(blob.consumedAt)} />) : <EmptyState text="No blobs match this search yet." />}
+              {matchingTags.length > 0 && searchScope !== 'blobs' ? (
+                <div className="mt-4">
+                  <div className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Matching Tags</div>
+                  <div className="flex flex-wrap gap-2">
+                    {matchingTags.map((tag: { name: string; count: number }) => (
+                      <Link key={tag.name} href={`/dashboard?tab=tag&tag=${tag.name}&date=${toDateInputValue(data.activeDate)}`} className="pill">
+                        #{tag.name} · {tag.count}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-4 space-y-3">
+                {data.searchBlobs.length ? data.searchBlobs.map((blob: BlobWithTags) => <BlobListRow key={blob.id} blob={blob} date={blob.consumedAt} />) : <EmptyState text="No results yet." />}
               </div>
-            </section>
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'tags' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="section-title">tags</div>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-                    {searchParams?.tag ? `#${searchParams.tag}` : 'your tag shelf'}
-                  </h2>
-                </div>
+            <ScreenCard title="Tags" subtitle="Your shelves">
+              <div className="space-y-3">
+                {data.tagCounts.length ? data.tagCounts.map((tag: { name: string; count: number }) => (
+                  <Link key={tag.name} href={`/dashboard?tab=tag&tag=${tag.name}&date=${toDateInputValue(data.activeDate)}`} className="flex items-center justify-between rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+                    <span className="font-semibold text-slate-900 dark:text-white">#{tag.name}</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{tag.count}</span>
+                  </Link>
+                )) : <EmptyState text="No tags yet." />}
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {data.tagCounts.length ? (
-                  data.tagCounts.map((tag: { name: string; count: number }) => (
-                    <Link key={tag.name} href={`/dashboard?tab=tags&tag=${tag.name}`} className="rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-800/80">
-                      <div className="font-semibold text-slate-900 dark:text-white">#{tag.name}</div>
-                      <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{tag.count} blobs</div>
-                    </Link>
-                  ))
-                ) : (
-                  <EmptyState text="No tags yet. Add some while saving blobs." />
-                )}
+            </ScreenCard>
+          ) : null}
+
+          {activeTab === 'tag' ? (
+            <ScreenCard title="Tag Detail" subtitle={searchParams?.tag ? `#${searchParams.tag}` : 'Pick a tag'}>
+              <div className="grid grid-cols-2 gap-2">
+                {tagModes.map((mode) => (
+                  <Link
+                    key={mode}
+                    href={`/dashboard?tab=tag&tag=${searchParams?.tag ?? ''}&mode=${mode}&date=${toDateInputValue(data.activeDate)}`}
+                    className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${tagMode === mode ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
+                  >
+                    {mode === 'recent' ? 'Recent' : 'Popular'}
+                  </Link>
+                ))}
               </div>
-              {searchParams?.tag ? (
-                <div className="mt-6 space-y-3">
-                  {data.allBlobs.length ? data.allBlobs.map((blob: BlobWithTags) => <BlobRow key={blob.id} blob={blob} date={toDateInputValue(blob.consumedAt)} />) : <EmptyState text="No blobs under this tag yet." />}
-                </div>
-              ) : null}
-            </section>
+              <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">{data.activeTagBlobs.length} blobs</div>
+              <div className="mt-4 space-y-3">
+                {data.activeTagBlobs.length ? data.activeTagBlobs.map((blob: BlobWithTags) => <BlobListRow key={blob.id} blob={blob} date={blob.consumedAt} />) : <EmptyState text="No blobs under this tag yet." />}
+              </div>
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'stats' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="section-title">stats</div>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">how the month looks</h2>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <MetricCard value={String(data.stats.monthBlobCount)} label="month blobs" />
-                <MetricCard value={`${data.stats.monthMinutes}m`} label="month minutes" />
-                <MetricCard value={String(data.stats.activeDays)} label="active days" />
-                <MetricCard value={String(data.stats.totalBlobCount)} label="all blobs" />
+            <ScreenCard title="Stats" subtitle="How it is going">
+              <div className="grid grid-cols-2 gap-2">
+                {statsPeriods.map((period) => (
+                  <Link
+                    key={period}
+                    href={`/dashboard?tab=stats&period=${period}&date=${toDateInputValue(data.activeDate)}`}
+                    className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${statsPeriod === period ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}
+                  >
+                    {period === 'week' ? 'This Week' : 'This Month'}
+                  </Link>
+                ))}
               </div>
-              <div className="mt-6 rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
-                <div className="text-sm font-semibold text-slate-900 dark:text-white">Top tags</div>
-                <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                  {topTags.length ? topTags.map((tag: { name: string; count: number }) => <div key={tag.name} className="flex items-center justify-between"><span>#{tag.name}</span><span>{tag.count}</span></div>) : <div>No tags yet.</div>}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <MetricTile label="Blobs" value={String(statsPeriod === 'week' ? data.stats.weekBlobCount : data.stats.monthBlobCount)} />
+                <MetricTile label="Time Spent" value={`${statsPeriod === 'week' ? data.stats.weekMinutes : data.stats.monthMinutes}m`} />
+                <MetricTile label="Day Streak" value={String(data.stats.streak)} />
+                <MetricTile label="Total Blobs" value={String(data.stats.totalBlobCount)} />
+              </div>
+              <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">Top Topics</div>
+                <div className="mt-4 flex items-center gap-4">
+                  <DonutChart items={data.topicDistribution} />
+                  <div className="flex-1 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                    {data.topicDistribution.length ? data.topicDistribution.map((item) => (
+                      <div key={item.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span>#{item.name}</span>
+                        </div>
+                        <span>{item.percentage}%</span>
+                      </div>
+                    )) : <div>No tag data yet.</div>}
+                  </div>
                 </div>
               </div>
-            </section>
+            </ScreenCard>
           ) : null}
 
           {activeTab === 'profile' ? (
-            <section className="soft-card p-6 sm:p-7">
-              <div className="section-title">profile</div>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{session.user.name ?? 'MikuBlob user'}</h2>
-              <div className="mt-5 space-y-4">
-                <ProfileRow label="email" value={session.user.email ?? 'No email returned'} />
-                <ProfileRow label="this month" value={`${data.stats.monthBlobCount} blobs`} />
-                <ProfileRow label="all blobs" value={`${data.stats.totalBlobCount} total`} />
-                <ProfileRow label="streak" value={`${data.stats.streak} days`} />
-                <ProfileRow label="tags" value={`${data.tagCounts.length} tags`} />
-                <ProfileRow label="theme" value="light / dark" />
+            <ScreenCard title="Profile" subtitle={session.user.name ?? 'MikuBlob user'}>
+              <div className="rounded-[1.5rem] bg-gradient-to-br from-teal-100 to-cyan-50 p-4 dark:from-teal-950/40 dark:to-slate-900">
+                <div className="flex items-center gap-4">
+                  <MikuImage size={72} className="max-w-[72px]" />
+                  <div>
+                    <div className="font-semibold text-slate-900 dark:text-white">{session.user.name ?? 'MikuBlob user'}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">{session.user.email ?? 'quiet learner'}</div>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <MetricTile compact label="Total Blobs" value={String(data.stats.totalBlobCount)} />
+                  <MetricTile compact label="Learning Days" value={String(data.stats.activeDays)} />
+                  <MetricTile compact label="Hours Logged" value={(Math.round(data.stats.monthMinutes / 6) / 10).toFixed(1)} />
+                </div>
               </div>
-            </section>
+              <div className="mt-4 space-y-3">
+                <ProfileLink href="/api/export" label="Export Data" hint="Download your blobs as JSON" />
+                <ProfileLink href="/dashboard?tab=profile" label="Import Data" hint="Soon" disabled />
+                <ProfileRow label="Theme" value="Use the toggle in the top bar." />
+                <ProfileLink href="/dashboard?tab=profile" label="Backup" hint="Soon" disabled />
+                <ProfileLink href="mailto:support@mikublob.app" label="Help & Feedback" hint="Send email" />
+                <form action={signOutAction}>
+                  <FormSubmitButton
+                    label="Logout"
+                    pendingLabel="Logging out..."
+                    className="w-full rounded-[1.5rem] border border-rose-200 bg-white/90 px-4 py-3 text-left text-sm font-semibold text-rose-600 dark:border-rose-900/60 dark:bg-slate-900/80 dark:text-rose-300"
+                  />
+                </form>
+              </div>
+            </ScreenCard>
           ) : null}
         </div>
-      </section>
+      </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/50 bg-white/85 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85">
-        <div className="page-shell">
-          <div className="grid grid-cols-5 gap-2">
-            {tabs.map((tab) => {
-              const href = `/dashboard?tab=${tab.key}${tab.key === 'calendar' || tab.key === 'search' || tab.key === 'tags' || tab.key === 'stats' || tab.key === 'profile' ? `&date=${toDateInputValue(data.activeDate)}` : ''}`;
-              const isActive = activeTab === tab.key;
-
-              return (
-                <Link
-                  key={tab.key}
-                  href={href as never}
-                  className={`rounded-2xl px-2 py-2 text-center text-xs font-semibold ${
-                    isActive ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
-                  <div>{tab.icon}</div>
-                  <div className="mt-1">{tab.label}</div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
+      <BottomNav activeTab={activeTab} date={data.activeDate} />
     </main>
   );
 }
 
-function resolveTab(tab: string | undefined, blobId: string | undefined, tag: string | undefined) {
-  if (blobId) {
-    return 'blob';
-  }
-
-  if (tag && tab === 'tags') {
-    return 'tags';
-  }
-
-  if (tab === 'add' || tab === 'edit' || tab === 'search' || tab === 'tags' || tab === 'stats' || tab === 'profile' || tab === 'day') {
-    return tab;
-  }
-
-  return 'calendar';
+function TopBar({ email }: { email: string }) {
+  return (
+    <div className="glass soft-ring rounded-[2rem] p-4 shadow-glow">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-lg font-black text-slate-900 dark:text-white">MikuBlob♪</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{email || 'quiet learning log'}</div>
+        </div>
+        <ThemeToggle />
+      </div>
+    </div>
+  );
 }
 
-function MetricCard({ value, label }: { value: string; label: string }) {
+function WelcomeCard({ name, streak, blobCount, minuteCount }: { name: string; streak: number; blobCount: number; minuteCount: number }) {
   return (
-    <div className="rounded-[1.5rem] bg-white/85 p-4 dark:bg-slate-900/80">
-      <div className="text-2xl font-black text-slate-900 dark:text-white">{value}</div>
-      <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{label}</div>
+    <div className="glass soft-ring bg-grid rounded-[2.5rem] p-5 shadow-glow">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="section-title">hello</div>
+          <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{name}</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Keep a small line of what you studied. One blob at a time.
+          </p>
+        </div>
+        <MikuImage size={88} className="max-w-[88px]" />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <MetricTile compact label="Streak" value={`${streak}`} />
+        <MetricTile compact label="This Month" value={`${blobCount}`} />
+        <MetricTile compact label="Minutes" value={`${minuteCount}`} />
+      </div>
+    </div>
+  );
+}
+
+function ScreenCard({
+  title,
+  subtitle,
+  action,
+  children
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="soft-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="section-title">{title}</div>
+          {subtitle ? <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{subtitle}</h2> : null}
+        </div>
+        {action}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function CalendarGrid({
+  calendarDays,
+  activeDate,
+  countsByDate
+}: {
+  calendarDays: Array<{ date: Date; inMonth: boolean }>;
+  activeDate: Date;
+  countsByDate: Map<string, number>;
+}) {
+  return (
+    <div className="grid grid-cols-7 gap-2 text-center text-sm">
+      {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => (
+        <div key={day} className="pb-2 font-medium text-slate-500 dark:text-slate-400">
+          {day}
+        </div>
+      ))}
+      {calendarDays.map(({ date, inMonth }) => {
+        const iso = toDateInputValue(date);
+        const isSelected = iso === toDateInputValue(activeDate);
+        const count = countsByDate.get(iso) ?? 0;
+
+        return (
+          <Link
+            key={iso}
+            href={`/dashboard?tab=day&date=${iso}`}
+            className={`relative rounded-2xl border p-3 font-semibold ${
+              isSelected
+                ? 'border-teal-400 bg-teal-500 text-white'
+                : count
+                  ? 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-300'
+                  : 'border-transparent bg-slate-50 text-slate-500 dark:bg-slate-800/70 dark:text-slate-300'
+            } ${!inMonth ? 'opacity-50' : ''}`}
+          >
+            {date.getDate()}
+            {count ? <span className="absolute bottom-2 right-2 text-[10px]">{count}</span> : null}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function DayTypeStrip({ counts }: { counts: Array<{ type: string; count: number }> }) {
+  if (!counts.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[1.5rem] bg-teal-50/70 p-4 dark:bg-teal-950/30">
+      <div className="text-sm font-semibold text-slate-900 dark:text-white">{counts.reduce((sum, item) => sum + item.count, 0)} Blobs</div>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {counts.slice(0, 4).map((item) => (
+          <div key={item.type} className="rounded-[1.25rem] bg-white/80 p-2 text-center dark:bg-slate-900/70">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{item.type.toLowerCase()}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{item.count}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FloatingAddLink({ date }: { date: Date }) {
+  return (
+    <div className="mt-5 flex justify-end">
+      <Link
+        href={`/dashboard?tab=add&date=${toDateInputValue(date)}`}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 text-xl font-semibold text-white shadow-lg shadow-teal-500/30"
+      >
+        +
+      </Link>
+    </div>
+  );
+}
+
+function AddBar({ date }: { date: Date }) {
+  return (
+    <div className="mt-5">
+      <Link
+        href={`/dashboard?tab=add&date=${toDateInputValue(date)}`}
+        className="flex w-full items-center justify-center rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
+      >
+        + Add Blob
+      </Link>
+    </div>
+  );
+}
+
+function BlobListRow({ blob, date }: { blob: BlobWithTags; date: Date }) {
+  return (
+    <Link
+      href={`/dashboard?tab=blob&blob=${blob.id}&date=${toDateInputValue(date)}`}
+      className="flex items-center justify-between rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 transition hover:border-teal-300 dark:border-slate-700 dark:bg-slate-800/80"
+    >
+      <div className="min-w-0">
+        <div className="truncate font-semibold text-slate-900 dark:text-white">{blob.title}</div>
+        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {blob.type.toLowerCase()} {blob.durationMin ? `· ${blob.durationMin}m` : ''}
+        </div>
+      </div>
+      <div className="ml-3 shrink-0 text-right text-xs text-slate-400">{blob.tags[0]?.tag.name ?? blob.type.toLowerCase()}</div>
+    </Link>
+  );
+}
+
+function BlobHeader({ blob }: { blob: BlobWithTags }) {
+  return (
+    <div className="rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">{blob.title}</div>
+          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {blob.type.toLowerCase()} · {blob.durationMin ? `${blob.durationMin} min` : 'no duration'} · {formatLongDate(blob.consumedAt)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TagPills({ tags }: { tags: BlobWithTags['tags'] }) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {tags.map(({ tag }) => (
+        <Link key={tag.id} href={`/dashboard?tab=tag&tag=${tag.name}`} className="pill">
+          {tag.name}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function DetailBlock({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="mt-4 rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
+      <div className="text-sm font-semibold text-slate-900 dark:text-white">{title}</div>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">{text}</p>
+    </div>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  compact = false
+}: {
+  label: string;
+  value: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`rounded-[1.5rem] bg-white/85 dark:bg-slate-900/80 ${compact ? 'p-3' : 'p-4'}`}>
+      <div className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-slate-900 dark:text-white`}>{value}</div>
+      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{label}</div>
     </div>
   );
 }
@@ -411,70 +556,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function BlobCard({ blob, date }: { blob: BlobWithTags; date: string }) {
-  return (
-    <div className="rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-800/80">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <Link href={`/dashboard?tab=blob&blob=${blob.id}&date=${date}`} className="text-base font-semibold text-slate-900 dark:text-white">
-            {blob.title}
-          </Link>
-          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {blob.type.toLowerCase()} {blob.durationMin ? `· ${blob.durationMin} min` : ''}
-          </div>
-          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{blob.summary || blob.keyLearnings || 'Open to read more.'}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {blob.tags.slice(0, 2).map(({ tag }) => (
-            <Link key={tag.id} href={`/dashboard?tab=tags&tag=${tag.name}`} className="pill">
-              {tag.name}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BlobRow({ blob, date }: { blob: BlobWithTags; date: string }) {
-  return (
-    <Link
-      href={`/dashboard?tab=blob&blob=${blob.id}&date=${date}`}
-      className="flex items-center justify-between rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 transition hover:border-teal-300 dark:border-slate-700 dark:bg-slate-800/80"
-    >
-      <div>
-        <div className="font-semibold text-slate-900 dark:text-white">{blob.title}</div>
-        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {blob.type.toLowerCase()} · {formatLongDate(blob.consumedAt)}
-        </div>
-      </div>
-      <div className="pill">{blob.tags[0]?.tag.name ?? blob.type.toLowerCase()}</div>
-    </Link>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-[1.5rem] bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">{text}</div>;
-}
-
-function DetailBlock({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="mt-6 rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
-      <div className="text-sm font-semibold text-slate-900 dark:text-white">{title}</div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300">{text}</p>
-    </div>
-  );
-}
-
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.5rem] bg-slate-50 p-4 dark:bg-slate-800/70">
-      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{label}</div>
-      <div className="mt-2 font-semibold text-slate-900 dark:text-white">{value}</div>
-    </div>
-  );
-}
-
 function BlobForm({
   action,
   defaultDate,
@@ -485,69 +566,165 @@ function BlobForm({
   blob?: BlobWithTags;
 }) {
   return (
-    <form action={action} className="mt-6 space-y-4">
+    <form action={action} className="space-y-4">
       {blob ? <input type="hidden" name="blobId" value={blob.id} /> : null}
       <Field label="Title">
-        <input name="title" required className={inputClassName} placeholder="LLVM IR Deep Dive" defaultValue={blob?.title ?? ''} />
+        <input name="title" required className={inputClassName} placeholder="e.g. LLVM IR Deep Dive" defaultValue={blob?.title ?? ''} />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date">
-          <input name="consumedAt" type="date" defaultValue={defaultDate} className={inputClassName} />
-        </Field>
-        <Field label="Type">
-          <select name="type" className={inputClassName} defaultValue={blob?.type ?? 'VIDEO'}>
-            {blobTypes.map((type) => (
-              <option key={type} value={type}>
-                {type.toLowerCase()}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Duration (min)">
-          <input
-            name="durationMin"
-            type="number"
-            min="0"
-            className={inputClassName}
-            placeholder="58"
-            defaultValue={blob?.durationMin ?? undefined}
-          />
-        </Field>
-      </div>
+      <Field label="Type">
+        <select name="type" className={inputClassName} defaultValue={blob?.type ?? 'VIDEO'}>
+          {blobTypes.map((type) => (
+            <option key={type} value={type}>
+              {type[0]}{type.slice(1).toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Date">
+        <input name="consumedAt" type="date" defaultValue={defaultDate} className={inputClassName} />
+      </Field>
       <Field label="Source URL">
-        <input name="sourceUrl" type="url" className={inputClassName} placeholder="https://..." defaultValue={blob?.sourceUrl ?? ''} />
+        <input name="sourceUrl" type="url" className={inputClassName} placeholder="https://youtube.com/watch?v=..." defaultValue={blob?.sourceUrl ?? ''} />
+      </Field>
+      <Field label="Duration (min)">
+        <input name="durationMin" type="number" min="0" className={inputClassName} placeholder="58" defaultValue={blob?.durationMin ?? undefined} />
       </Field>
       <Field label="Tags">
-        <input
-          name="tags"
-          className={inputClassName}
-          placeholder="compiler, llvm, ssa"
-          defaultValue={blob ? blob.tags.map(({ tag }) => tag.name).join(', ') : ''}
-        />
+        <input name="tags" className={inputClassName} placeholder="compiler, llvm, ssa" defaultValue={blob ? blob.tags.map(({ tag }) => tag.name).join(', ') : ''} />
       </Field>
       <Field label="Summary">
-        <textarea
-          name="summary"
-          className={`${inputClassName} min-h-24`}
-          placeholder="What was this about?"
-          defaultValue={blob?.summary ?? ''}
-        />
+        <textarea name="summary" className={`${inputClassName} min-h-24`} placeholder="What was this about?" defaultValue={blob?.summary ?? ''} />
       </Field>
       <Field label="Key Learnings">
-        <textarea
-          name="keyLearnings"
-          className={`${inputClassName} min-h-28`}
-          placeholder="What do you want to remember?"
-          defaultValue={blob?.keyLearnings ?? ''}
-        />
+        <textarea name="keyLearnings" className={`${inputClassName} min-h-28`} placeholder="What did you learn?" defaultValue={blob?.keyLearnings ?? ''} />
       </Field>
       <FormSubmitButton
-        label={blob ? 'Update blob' : 'Save blob'}
-        pendingLabel={blob ? 'Updating...' : 'Saving...'}
-        className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
+        label={blob ? 'Save Changes' : 'Save Blob'}
+        pendingLabel={blob ? 'Saving...' : 'Saving...'}
+        className="w-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
       />
     </form>
   );
+}
+
+function DonutChart({
+  items
+}: {
+  items: Array<{ name: string; count: number; percentage: number; color: string }>;
+}) {
+  if (!items.length) {
+    return <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-200 text-xs text-slate-500 dark:bg-slate-700">0</div>;
+  }
+
+  const gradient = items
+    .reduce<{ start: number; parts: string[] }>(
+      (acc, item) => {
+        const end = acc.start + item.percentage;
+        acc.parts.push(`${item.color} ${acc.start}% ${end}%`);
+        acc.start = end;
+        return acc;
+      },
+      { start: 0, parts: [] }
+    )
+    .parts.join(', ');
+
+  return (
+    <div className="flex h-24 w-24 items-center justify-center rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
+      <div className="h-14 w-14 rounded-full bg-white dark:bg-slate-900" />
+    </div>
+  );
+}
+
+function ProfileLink({
+  href,
+  label,
+  hint,
+  disabled = false
+}: {
+  href: string;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+}) {
+  const className = 'flex items-center justify-between rounded-[1.5rem] border border-slate-200/80 bg-white/80 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800/80';
+
+  if (disabled) {
+    return (
+      <div className={`${className} text-slate-400 dark:text-slate-500`}>
+        <span>{label}</span>
+        <span>{hint}</span>
+      </div>
+    );
+  }
+
+  return (
+    <a href={href} className={`${className} text-slate-700 dark:text-slate-200`} download={href === '/api/export' ? '' : undefined}>
+      <span>{label}</span>
+      <span className="text-slate-400">{hint}</span>
+    </a>
+  );
+}
+
+function ProfileRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80">
+      <div className="text-sm font-semibold text-slate-900 dark:text-white">{label}</div>
+      <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{value}</div>
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <div className="rounded-[1.5rem] bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">{text}</div>;
+}
+
+function BottomNav({ activeTab, date }: { activeTab: DashboardTab; date: Date }) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/50 bg-white/85 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85">
+      <div className="mx-auto w-full max-w-md">
+        <div className="grid grid-cols-5 gap-2">
+          {tabs.map((tab) => {
+            const href = `/dashboard?tab=${tab.key}&date=${toDateInputValue(date)}`;
+            const isActive = activeTab === tab.key || (activeTab === 'tag' && tab.key === 'tags');
+
+            return (
+              <Link
+                key={tab.key}
+                href={href as never}
+                className={`rounded-2xl px-2 py-2 text-center text-xs font-semibold ${
+                  isActive ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                <div>{tab.icon}</div>
+                <div className="mt-1">{tab.label}</div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+function resolveTab(tab: string | undefined, blobId: string | undefined, tag: string | undefined): DashboardTab {
+  if (blobId) return 'blob';
+  if (tab === 'tag' || (tag && tab === 'tags')) return tab === 'tag' ? 'tag' : 'tags';
+  if (tab === 'add' || tab === 'edit' || tab === 'search' || tab === 'tags' || tab === 'stats' || tab === 'profile' || tab === 'day') {
+    return tab;
+  }
+  return 'calendar';
+}
+
+function resolveSearchScope(value: string | undefined): SearchScope {
+  return value === 'blobs' || value === 'tags' ? value : 'all';
+}
+
+function resolveTagMode(value: string | undefined): TagMode {
+  return value === 'popular' ? 'popular' : 'recent';
+}
+
+function resolveStatsPeriod(value: string | undefined): StatsPeriod {
+  return value === 'month' ? 'month' : 'week';
 }
 
 type BlobWithTags = {

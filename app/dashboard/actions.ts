@@ -43,12 +43,19 @@ export async function deleteBlobAction(formData: FormData) {
   const blobId = String(formData.get('blobId') ?? '');
   const tab = String(formData.get('tab') ?? 'day');
   const date = String(formData.get('date') ?? '');
+  const tag = String(formData.get('tag') ?? '');
+  const mode = String(formData.get('mode') ?? '');
 
   if (blobId) {
     await deleteBlobEntry(session.user.id, blobId);
   }
 
-  redirect(`/dashboard?tab=${tab}${date ? `&date=${date}` : ''}`);
+  const params = new URLSearchParams();
+  params.set('tab', tab);
+  if (date) params.set('date', date);
+  if (tag) params.set('tag', tag);
+  if (mode) params.set('mode', mode);
+  redirect(`/dashboard?${params.toString()}`);
 }
 
 export async function updateBlobAction(formData: FormData) {

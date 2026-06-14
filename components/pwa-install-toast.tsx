@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 declare global {
   interface BeforeInstallPromptEvent extends Event {
@@ -14,6 +15,7 @@ declare global {
 }
 
 export function PwaInstallToast() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isIos, setIsIos] = useState(false);
@@ -73,7 +75,7 @@ export function PwaInstallToast() {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+    <div className={`pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4 ${pathname?.startsWith('/dashboard') ? 'bottom-24' : 'bottom-4'}`}>
       <div className="glass soft-ring pointer-events-auto w-full max-w-md rounded-3xl p-4 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>

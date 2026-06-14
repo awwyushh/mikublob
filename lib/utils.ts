@@ -33,6 +33,19 @@ export function endOfMonth(value: Date) {
   return new Date(value.getFullYear(), value.getMonth() + 1, 1);
 }
 
+export function startOfWeek(value: Date) {
+  const date = startOfDay(value);
+  const offset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - offset);
+  return date;
+}
+
+export function endOfWeek(value: Date) {
+  const date = startOfWeek(value);
+  date.setDate(date.getDate() + 7);
+  return date;
+}
+
 export function toDateInputValue(value: Date) {
   return value.toISOString().slice(0, 10);
 }
