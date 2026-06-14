@@ -78,13 +78,18 @@ export function PwaInstallToast() {
     <div className={`pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4 ${pathname?.startsWith('/dashboard') ? 'bottom-24' : 'bottom-4'}`}>
       <div className="glass soft-ring pointer-events-auto w-full max-w-md rounded-3xl p-4 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold text-slate-900 dark:text-white">Install MikuBlob</div>
-            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {isIos
-                ? 'Add it from Safari using Share → Add to Home Screen.'
-                : 'Install the app for faster access and a cleaner full-screen experience.'}
-            </p>
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-teal-50 dark:bg-teal-950/40">
+              <img src="/miku.png" alt="" className="h-10 w-10 object-contain" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">Install MikuBlob</div>
+              <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                {isIos
+                  ? 'Add it from Safari using Share → Add to Home Screen.'
+                  : 'Install the PWA for the app and open MikuBlob like a home screen app.'}
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -102,7 +107,7 @@ export function PwaInstallToast() {
               onClick={handleInstall}
               className="rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white"
             >
-              Install App
+              Install PWA
             </button>
           ) : null}
           <button

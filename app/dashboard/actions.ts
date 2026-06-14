@@ -33,6 +33,32 @@ export async function createBlobAction(formData: FormData) {
   redirect(`/dashboard?tab=day&date=${consumedAt}`);
 }
 
+function getReturnUrl(formData: FormData, fallback: string) {
+  const returnTab = String(formData.get('returnTab') ?? '');
+  const returnDate = String(formData.get('returnDate') ?? '');
+  const returnBlob = String(formData.get('returnBlob') ?? '');
+  const returnTag = String(formData.get('returnTag') ?? '');
+  const returnMode = String(formData.get('returnMode') ?? '');
+  const returnScope = String(formData.get('returnScope') ?? '');
+  const returnQuery = String(formData.get('returnQuery') ?? '');
+  const returnPeriod = String(formData.get('returnPeriod') ?? '');
+
+  if (!returnTab) {
+    return fallback;
+  }
+
+  const params = new URLSearchParams();
+  params.set('tab', returnTab);
+  if (returnDate) params.set('date', returnDate);
+  if (returnBlob) params.set('blob', returnBlob);
+  if (returnTag) params.set('tag', returnTag);
+  if (returnMode) params.set('mode', returnMode);
+  if (returnScope) params.set('scope', returnScope);
+  if (returnQuery) params.set('q', returnQuery);
+  if (returnPeriod) params.set('period', returnPeriod);
+  return `/dashboard?${params.toString()}`;
+}
+
 export async function deleteBlobAction(formData: FormData) {
   const session = await auth();
 
@@ -50,12 +76,7 @@ export async function deleteBlobAction(formData: FormData) {
     await deleteBlobEntry(session.user.id, blobId);
   }
 
-  const params = new URLSearchParams();
-  params.set('tab', tab);
-  if (date) params.set('date', date);
-  if (tag) params.set('tag', tag);
-  if (mode) params.set('mode', mode);
-  redirect(`/dashboard?${params.toString()}`);
+  redirect(getReturnUrl(formData, `/dashboard?tab=${tab}${date ? `&date=${date}` : ''}${tag ? `&tag=${tag}` : ''}${mode ? `&mode=${mode}` : ''}`));
 }
 
 export async function updateBlobAction(formData: FormData) {
@@ -83,5 +104,5 @@ export async function updateBlobAction(formData: FormData) {
     });
   }
 
-  redirect(`/dashboard?tab=blob&blob=${blobId}&date=${consumedAt}`);
+  redirect(getReturnUrl(formData, `/dashboard?tab=blob&blob=${blobId}&date=${consumedAt}`));
 }

@@ -50,6 +50,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const searchScope = resolveSearchScope(searchParams?.scope);
   const tagMode = resolveTagMode(searchParams?.mode);
   const statsPeriod = resolveStatsPeriod(searchParams?.period);
+  const currentQuery = searchParams?.q ?? '';
+  const currentTag = searchParams?.tag ?? '';
 
   const data = await getDashboardData(session.user.id, {
     date: activeDate,
@@ -167,7 +169,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
           {activeTab === 'edit' && activeBlob ? (
             <ScreenCard title="Edit Blob" subtitle="Update this note" hideHeader>
-              <BlobForm action={updateBlobAction} defaultDate={toDateInputValue(activeBlob.consumedAt)} blob={activeBlob} />
+              <BlobForm
+                action={updateBlobAction}
+                defaultDate={toDateInputValue(activeBlob.consumedAt)}
+                blob={activeBlob}
+                cancelHref={`/dashboard?tab=blob&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`}
+                returnState={{
+                  tab: 'blob',
+                  date: toDateInputValue(activeBlob.consumedAt),
+                  blob: activeBlob.id
+                }}
+              />
             </ScreenCard>
           ) : null}
 
@@ -188,6 +200,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   <input type="hidden" name="blobId" value={activeBlob.id} />
                   <input type="hidden" name="tab" value="day" />
                   <input type="hidden" name="date" value={toDateInputValue(activeBlob.consumedAt)} />
+                  <input type="hidden" name="returnTab" value="day" />
+                  <input type="hidden" name="returnDate" value={toDateInputValue(activeBlob.consumedAt)} />
+                  {currentTag ? <input type="hidden" name="returnTag" value={currentTag} /> : null}
+                  {searchParams?.mode ? <input type="hidden" name="returnMode" value={searchParams.mode} /> : null}
+                  {searchScope ? <input type="hidden" name="returnScope" value={searchScope} /> : null}
+                  {currentQuery ? <input type="hidden" name="returnQuery" value={currentQuery} /> : null}
+                  {statsPeriod ? <input type="hidden" name="returnPeriod" value={statsPeriod} /> : null}
                   <FormSubmitButton
                     label="Delete Blob"
                     pendingLabel="Deleting..."
@@ -597,15 +616,36 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function BlobForm({
   action,
   defaultDate,
-  blob
+  blob,
+  cancelHref,
+  returnState
 }: {
   action: (formData: FormData) => Promise<void>;
   defaultDate: string;
   blob?: BlobWithTags;
+  cancelHref?: string;
+  returnState?: {
+    tab: string;
+    date?: string;
+    blob?: string;
+    tag?: string;
+    mode?: string;
+    scope?: string;
+    q?: string;
+    period?: string;
+  };
 }) {
   return (
     <form action={action} className="space-y-4">
       {blob ? <input type="hidden" name="blobId" value={blob.id} /> : null}
+      {returnState ? <input type="hidden" name="returnTab" value={returnState.tab} /> : null}
+      {returnState?.date ? <input type="hidden" name="returnDate" value={returnState.date} /> : null}
+      {returnState?.blob ? <input type="hidden" name="returnBlob" value={returnState.blob} /> : null}
+      {returnState?.tag ? <input type="hidden" name="returnTag" value={returnState.tag} /> : null}
+      {returnState?.mode ? <input type="hidden" name="returnMode" value={returnState.mode} /> : null}
+      {returnState?.scope ? <input type="hidden" name="returnScope" value={returnState.scope} /> : null}
+      {returnState?.q ? <input type="hidden" name="returnQuery" value={returnState.q} /> : null}
+      {returnState?.period ? <input type="hidden" name="returnPeriod" value={returnState.period} /> : null}
       <Field label="Title">
         <input name="title" required className={inputClassName} placeholder="e.g. LLVM IR Deep Dive" defaultValue={blob?.title ?? ''} />
       </Field>
@@ -636,11 +676,21 @@ function BlobForm({
       <Field label="Key Learnings">
         <textarea name="keyLearnings" className={`${inputClassName} min-h-28`} placeholder="What did you learn?" defaultValue={blob?.keyLearnings ?? ''} />
       </Field>
-      <FormSubmitButton
-        label={blob ? 'Save Changes' : 'Save Blob'}
-        pendingLabel={blob ? 'Saving...' : 'Saving...'}
-        className="w-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white"
-      />
+      <div className="flex gap-3">
+        {cancelHref ? (
+          <Link
+            href={cancelHref}
+            className="flex-1 rounded-full border border-slate-200 bg-white/90 px-5 py-3 text-center text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200"
+          >
+            Cancel
+          </Link>
+        ) : null}
+        <FormSubmitButton
+          label={blob ? 'Save Changes' : 'Save Blob'}
+          pendingLabel={blob ? 'Saving...' : 'Saving...'}
+          className={`${cancelHref ? 'flex-1' : 'w-full'} rounded-full bg-gradient-to-r from-teal-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white`}
+        />
+      </div>
     </form>
   );
 }
@@ -798,7 +848,8 @@ function BottomNavIcon({ tab, active }: { tab: DashboardTab; active: boolean }) 
 }
 
 function resolveTab(tab: string | undefined, blobId: string | undefined, tag: string | undefined): DashboardTab {
-  if (blobId) return 'blob';
+  if (tab === 'edit') return 'edit';
+  if (tab === 'blob' || blobId) return 'blob';
   if (tab === 'tag' || (tag && tab === 'tags')) return tab === 'tag' ? 'tag' : 'tags';
   if (tab === 'add' || tab === 'edit' || tab === 'search' || tab === 'tags' || tab === 'stats' || tab === 'profile' || tab === 'day') {
     return tab;
