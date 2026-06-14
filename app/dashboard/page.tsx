@@ -679,7 +679,7 @@ function BlobForm({
       <div className="flex gap-3">
         {cancelHref ? (
           <Link
-            href={cancelHref}
+            href={cancelHref as never}
             className="flex-1 rounded-full border border-slate-200 bg-white/90 px-5 py-3 text-center text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200"
           >
             Cancel
