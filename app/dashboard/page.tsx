@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { auth } from '@/auth';
+import { DashboardTopBar } from '@/components/dashboard-top-bar';
 import { FormSubmitButton } from '@/components/form-submit-button';
 import { MikuImage } from '@/components/miku-image';
 import { SignOutButton } from '@/components/sign-out-button';
@@ -79,11 +80,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const matchingTags = searchParams?.q
     ? data.tagCounts.filter((tag: { name: string; count: number }) => tag.name.includes(searchParams.q!.trim().toLowerCase())).slice(0, 6)
     : [];
+  const topBarConfig = getTopBarConfig({
+    activeTab,
+    activeDate: data.activeDate,
+    currentMonth,
+    activeBlobId: activeBlob?.id ?? null,
+    activeBlobTitle: activeBlob?.title ?? null,
+    activeTag: searchParams?.tag ?? null
+  });
 
   return (
     <main className="min-h-screen pb-24">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-24 pt-4">
-        <TopBar name={session.user.name?.split(' ')[0] ?? 'friend'} />
+        <DashboardTopBar
+          title={topBarConfig.title}
+          subtitle={topBarConfig.subtitle}
+          backHref={topBarConfig.backHref}
+          showTheme={activeTab === 'calendar'}
+          collapsible={activeTab === 'calendar' || activeTab === 'day'}
+        />
 
         <div className="mt-4 space-y-4">
           {activeTab === 'calendar' ? (
@@ -99,6 +114,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <ScreenCard
               title="Calendar"
               subtitle={formatMonthLabel(currentMonth)}
+              hideHeader
               action={
                 <div className="flex items-center gap-2">
                   <Link href={`/dashboard?tab=calendar&date=${toDateInputValue(previousMonth)}`} className="pill">
@@ -123,6 +139,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <ScreenCard
               title="Day View"
               subtitle={formatLongDate(data.activeDate)}
+              hideHeader
               action={
                 <div className="flex items-center gap-2">
                   <Link href={`/dashboard?tab=day&date=${toDateInputValue(previousDay)}`} className="pill">
@@ -143,13 +160,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'add' ? (
-            <ScreenCard title="Add Blob" subtitle="Save today’s study">
+            <ScreenCard title="Add Blob" subtitle="Save today’s study" hideHeader>
               <BlobForm action={createBlobAction} defaultDate={toDateInputValue(data.activeDate)} />
             </ScreenCard>
           ) : null}
 
           {activeTab === 'edit' && activeBlob ? (
-            <ScreenCard title="Edit Blob" subtitle="Update this note">
+            <ScreenCard title="Edit Blob" subtitle="Update this note" hideHeader>
               <BlobForm action={updateBlobAction} defaultDate={toDateInputValue(activeBlob.consumedAt)} blob={activeBlob} />
             </ScreenCard>
           ) : null}
@@ -158,6 +175,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <ScreenCard
               title="Blob View"
               subtitle={activeBlob.title}
+              hideHeader
               action={<Link href={`/dashboard?tab=edit&blob=${activeBlob.id}&date=${toDateInputValue(activeBlob.consumedAt)}`} className="pill">Edit</Link>}
             >
               <BlobHeader blob={activeBlob} />
@@ -181,7 +199,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'search' ? (
-            <ScreenCard title="Search" subtitle="Find old notes">
+            <ScreenCard title="Search" subtitle="Find old notes" hideHeader>
               <form action="/dashboard" className="space-y-3">
                 <input type="hidden" name="tab" value="search" />
                 <input type="hidden" name="date" value={toDateInputValue(data.activeDate)} />
@@ -219,7 +237,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'tags' ? (
-            <ScreenCard title="Tags" subtitle="Your shelves">
+            <ScreenCard title="Tags" subtitle="Your shelves" hideHeader>
               <div className="space-y-3">
                 {data.tagCounts.length ? data.tagCounts.map((tag: { name: string; count: number }) => (
                   <Link key={tag.name} href={`/dashboard?tab=tag&tag=${tag.name}&date=${toDateInputValue(data.activeDate)}`} className="flex items-center justify-between rounded-[1.5rem] border border-slate-200/80 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-800/80">
@@ -232,7 +250,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'tag' ? (
-            <ScreenCard title="Tag Detail" subtitle={searchParams?.tag ? `#${searchParams.tag}` : 'Pick a tag'}>
+            <ScreenCard title="Tag Detail" subtitle={searchParams?.tag ? `#${searchParams.tag}` : 'Pick a tag'} hideHeader>
               <div className="grid grid-cols-2 gap-2">
                 {tagModes.map((mode) => (
                   <Link
@@ -252,7 +270,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'stats' ? (
-            <ScreenCard title="Stats" subtitle="How it is going">
+            <ScreenCard title="Stats" subtitle="How it is going" hideHeader>
               <div className="grid grid-cols-2 gap-2">
                 {statsPeriods.map((period) => (
                   <Link
@@ -291,7 +309,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
 
           {activeTab === 'profile' ? (
-            <ScreenCard title="Profile" subtitle={session.user.name ?? 'MikuBlob user'}>
+            <ScreenCard title="Profile" subtitle={session.user.name ?? 'MikuBlob user'} hideHeader>
               <div className="rounded-[1.5rem] bg-gradient-to-br from-teal-100 to-cyan-50 p-4 dark:from-teal-950/40 dark:to-slate-900">
                 <div className="flex items-center gap-4">
                   <MikuImage size={72} className="max-w-[72px]" />
@@ -333,23 +351,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
 }
 
-function TopBar({ name }: { name: string }) {
-  return (
-    <div className="rounded-[2rem] border border-white/50 bg-white/75 px-4 py-3 shadow-[0_12px_40px_rgba(57,197,187,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-lg font-black tracking-tight text-slate-900 dark:text-white">MikuBlob♪</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">hi, {name}</div>
-        </div>
-        <div className="flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 dark:bg-teal-950/50 dark:text-teal-200">
-          <span className="h-2 w-2 rounded-full bg-teal-400" />
-          quiet mode
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function WelcomeCard({ name, streak, blobCount, minuteCount }: { name: string; streak: number; blobCount: number; minuteCount: number }) {
   return (
     <div className="glass soft-ring bg-grid rounded-[2.5rem] p-5 shadow-glow">
@@ -376,23 +377,31 @@ function ScreenCard({
   title,
   subtitle,
   action,
+  hideHeader = false,
   children
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  hideHeader?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="soft-card p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="section-title">{title}</div>
-          {subtitle ? <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{subtitle}</h2> : null}
+    <section className="soft-card screen-enter p-5">
+      {!hideHeader || action ? (
+        <div className="flex items-start justify-between gap-3">
+          {!hideHeader ? (
+            <div>
+              <div className="section-title">{title}</div>
+              {subtitle ? <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{subtitle}</h2> : null}
+            </div>
+          ) : (
+            <div />
+          )}
+          {action}
         </div>
-        {action}
-      </div>
-      <div className="mt-4">{children}</div>
+      ) : null}
+      <div className={!hideHeader || action ? 'mt-4' : ''}>{children}</div>
     </section>
   );
 }
@@ -786,6 +795,84 @@ function resolveTagMode(value: string | undefined): TagMode {
 
 function resolveStatsPeriod(value: string | undefined): StatsPeriod {
   return value === 'month' ? 'month' : 'week';
+}
+
+function getTopBarConfig({
+  activeTab,
+  activeDate,
+  currentMonth,
+  activeBlobId,
+  activeBlobTitle,
+  activeTag
+}: {
+  activeTab: DashboardTab;
+  activeDate: Date;
+  currentMonth: Date;
+  activeBlobId: string | null;
+  activeBlobTitle: string | null;
+  activeTag: string | null;
+}) {
+  switch (activeTab) {
+    case 'calendar':
+      return {
+        title: 'MikuBlob♪',
+        subtitle: formatMonthLabel(currentMonth)
+      };
+    case 'day':
+      return {
+        title: 'Day View',
+        subtitle: formatLongDate(activeDate),
+        backHref: `/dashboard?tab=calendar&date=${toDateInputValue(activeDate)}`
+      };
+    case 'add':
+      return {
+        title: 'Add Blob',
+        subtitle: formatLongDate(activeDate),
+        backHref: `/dashboard?tab=day&date=${toDateInputValue(activeDate)}`
+      };
+    case 'edit':
+      return {
+        title: 'Edit Blob',
+        subtitle: activeBlobTitle ?? 'Update note',
+        backHref: activeBlobId ? `/dashboard?tab=blob&blob=${activeBlobId}&date=${toDateInputValue(activeDate)}` : `/dashboard?tab=day&date=${toDateInputValue(activeDate)}`
+      };
+    case 'blob':
+      return {
+        title: activeBlobTitle ?? 'Blob View',
+        subtitle: formatLongDate(activeDate),
+        backHref: `/dashboard?tab=day&date=${toDateInputValue(activeDate)}`
+      };
+    case 'search':
+      return {
+        title: 'Search',
+        subtitle: 'Find old notes'
+      };
+    case 'tags':
+      return {
+        title: 'Tags',
+        subtitle: 'Your shelves'
+      };
+    case 'tag':
+      return {
+        title: activeTag ? `#${activeTag}` : 'Tag Detail',
+        subtitle: 'Recent and popular',
+        backHref: `/dashboard?tab=tags&date=${toDateInputValue(activeDate)}`
+      };
+    case 'stats':
+      return {
+        title: 'Stats',
+        subtitle: 'This week and month'
+      };
+    case 'profile':
+      return {
+        title: 'Profile',
+        subtitle: 'Settings and export'
+      };
+    default:
+      return {
+        title: 'MikuBlob♪'
+      };
+  }
 }
 
 type BlobWithTags = {
